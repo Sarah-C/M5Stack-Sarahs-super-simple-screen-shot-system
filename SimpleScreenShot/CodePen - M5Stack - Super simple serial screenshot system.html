@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<!-- saved from url=(0049)https://cdpn.io/SarahC/debug/oNWqKQa/bZAQWKmnQoOM -->
+<html lang="en">
+<head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+  <title>CodePen - M5Stack - Super simple serial screenshot system.</title>
+  
+<style>
+body {
+  background: black;
+  color: white;
+  font-family: arial;
+}
+
+.highlight{
+  color: white;
+}
+
+pre {
+  color: green;
+}
+
+canvas {
+  background: #303030;
+  border: 1px solid grey;
+}
+</style>
+
+</head>
+
+<body translate="no">
+  <h1>Sarah's super simple screen shot system.</h1>
+(M5Stack-Core-ESP32-Grey lightweight low-memory screenshot maker)<br><br>
+<br>
+<label for="SST">Enter screenshot text: (copy and paste from Arduino serial-monitor window.</label> <br>
+
+<textarea id="SST" name="SST" rows="10" cols="120"></textarea>
+<br>
+<button onclick="makeImage()">Make image</button><br><br>
+
+<br><br>
+Chrome: Right click and select "Save image as...."<br>
+<canvas id="output" width="320" height="240"></canvas><br>
+<br>
+<br>
+Arduino code highlighted in white, whole program is a Mandelbrot example!
+<pre>#include &lt;M5Stack.h&gt;
+
+// Using the Arduino "Serial monitor" - Paste the big block of hex code between the comments into this page:
+// https://codepen.io/SarahC/pen/oNWqKQa?editors=1001
+
+#define ILI9341_GREY 0x7BEF
+unsigned long runTime = 0;
+
+float sx = 0, sy = 0;
+uint16_t x0 = 0, x1 = 0, yy0 = 0, yy1 = 0;
+
+</pre>
+<pre class="highlight">// Either one of these, both produce the same output but you might want to use the data for other programs. &gt;&gt;&gt;
+
+// RGB565 is less text to copy.
+
+void takeScreenshot888(void) {
+  uint8_t pixels[16];
+  Serial.println(F("--------------- COPY CODE AFTER THIS LINE FOR RGB888 SCREEN SHOT ----------------"));
+  for (int y = 0; y &lt; 240; y++) {
+    for (int x = 0; x &lt; 320; x += 5) {
+      M5.Lcd.readRectRGB(x, y, 5, 1, pixels);
+      for (int arrayPtr = 0; arrayPtr &lt; 15; arrayPtr++) {
+        Serial.printf("%02X", pixels[arrayPtr]);
+      }
+    }
+    if (y != 240) Serial.println("");
+  }
+  Serial.println(F("--------------- COPY CODE UP TO THIS LINE FOR RGB888 SCREEN SHOT ----------------"));
+}
+
+void takeScreenshot565(void) {
+  uint16_t pixels[6];
+  Serial.println(F("--------------- COPY CODE AFTER THIS LINE FOR RGB565 SCREEN SHOT ----------------"));
+  for (int y = 0; y &lt; 240; y++) {
+    for (int x = 0; x &lt; 320; x += 5) {
+      M5.Lcd.readRect(x, y, 5, 1, pixels);
+      for (int arrayPtr = 0; arrayPtr &lt; 5; arrayPtr++) {
+        Serial.printf("%04X", pixels[arrayPtr]);
+      }
+    }
+    if (y != 240) Serial.println("");
+  }
+  Serial.println(F("--------------- COPY CODE UP TO THIS LINE FOR RGB565 SCREEN SHOT ----------------"));
+}
+</pre>
+<pre>void setup()
+{
+  M5.begin();
+  M5.Power.begin();
+}
+
+void loop()
+{
+  runTime = millis();
+
+  M5.Lcd.fillScreen(ILI9341_BLACK);
+  for (int px = 1; px &lt; 320; px++)
+  {
+    for (int py = 0; py &lt; 240; py++)
+    {
+      float x0 = (map(px, 0, 320, -250000 / 2, -242500 / 2)) / 100000.0; //scaled x coordinate of pixel (scaled to lie in the Mandelbrot X scale (-2.5, 1))
+      float yy0 = (map(py, 0, 240, -75000 / 4, -61000 / 4)) / 100000.0; //scaled y coordinate of pixel (scaled to lie in the Mandelbrot Y scale (-1, 1))
+      float xx = 0.0;
+      float yy = 0.0;
+      int iteration = 0;
+      int max_iteration = 128;
+      while ( ((xx * xx + yy * yy) &lt; 4)  &amp;&amp;  (iteration &lt; max_iteration) )
+      {
+        float xtemp = xx * xx - yy * yy + x0;
+        yy = 2 * xx * yy + yy0;
+        xx = xtemp;
+        iteration++;
+      }
+      int color = rainbow((3 * iteration + 64) % 128);
+      yield(); M5.Lcd.drawPixel(px, py, color);
+    }
+  }
+  </pre><pre class="highlight">  // Open the serial monitor, and look for the large block of hex numbers.
+  //takeScreenshot888();
+  takeScreenshot565();
+  </pre><pre>  while (1) yield();
+}
+
+unsigned int rainbow(int value)
+{
+  // Value is expected to be in range 0-127
+  // The value is converted to a spectrum colour from 0 = blue through to red = blue
+
+  byte red = 0; // Red is the top 5 bits of a 16 bit colour value
+  byte green = 0;// Green is the middle 6 bits
+  byte blue = 0; // Blue is the bottom 5 bits
+
+  byte quadrant = value / 32;
+
+  if (quadrant == 0) {
+    blue = 31;
+    green = 2 * (value % 32);
+    red = 0;
+  }
+  if (quadrant == 1) {
+    blue = 31 - (value % 32);
+    green = 63;
+    red = 0;
+  }
+  if (quadrant == 2) {
+    blue = 0;
+    green = 63;
+    red = value % 32;
+  }
+  if (quadrant == 3) {
+    blue = 0;
+    green = 63 - 2 * (value % 32);
+    red = 31;
+  }
+  return (red &lt;&lt; 11) + (green &lt;&lt; 5) + blue;
+}
+
+
+</pre>
+  
+<script>
+let c = document.getElementById("output");
+let SST = document.getElementById("SST");
+
+c.width = 320;
+c.height = 240;
+let ctx = c.getContext("2d");
+
+let pixelsWrapper = ctx.getImageData(0, 0, c.width, c.height);
+let pixels = pixelsWrapper.data;
+
+function makeImage(){
+  let str = SST.value;
+  if(str.length == 0) return;
+  let lines = str.split("\n");
+  if(lines[0].length == 1920) 
+    makeImage888(lines); 
+  else 
+    makeImage565(lines);
+}
+
+function makeImage888(lines){
+  for(let y = 0; y < 240; y++){
+    let items = lines[y].match(/.{1,2}/g);
+    let ptr = (y * 320 * 4);
+    for(let itemX = 0; itemX < 960; itemX += 3 ){
+      let r = parseInt(items[itemX], 16);
+      let g = parseInt(items[itemX + 1], 16);
+      let b = parseInt(items[itemX + 2], 16);
+      pixels[ptr++] = r;
+      pixels[ptr++] = g;
+      pixels[ptr++] = b;
+      pixels[ptr++] = 255;
+    }
+  }
+  ctx.putImageData(pixelsWrapper, 0, 0);
+}
+
+function makeImage565(lines){
+  for(let y = 0; y < 240; y++){
+    let items = lines[y].match(/.{1,2}/g);
+    let ptr = (y * 320 * 4);
+    for(let itemX = 0; itemX < 640; itemX += 2 ){
+      let hex = items[itemX + 1] + items[itemX] ;
+      let color = parseInt(hex, 16);
+      let r = ((((color >> 11) & 0x1F) * 527) + 23) >> 6;
+      let g = ((((color >> 5) & 0x3F) * 259) + 33) >> 6;
+      let b = (((color & 0x1F) * 527) + 23) >> 6;
+      pixels[ptr++] = r;
+      pixels[ptr++] = g;
+      pixels[ptr++] = b;
+      pixels[ptr++] = 255;
+    }
+  }
+  ctx.putImageData(pixelsWrapper, 0, 0);
+}
+</script>
+</body></html>
